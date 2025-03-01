@@ -1,0 +1,133 @@
+---
+title: "Breast_cancer_calssfication_XGBoost"
+author: "Xinzhu Li"
+format: pdf
+editor: visual
+---
+
+# Introduction
+
+For the dataset Breastcancer classification problem, previously we used 4 methods to solve this problem: Logistic Regression, Decision Trees, Random Forest, and Support Vector Machines(SVM).
+
+Now we use another way from ensemble learning : XGBoost.
+
+XGBoost (Extreme Gradient Boosting) is an advanced **ensemble learning** algorithm that builds multiple decision trees sequentially and improves performance using gradient boosting. It is designed for speed and accuracy, making it a strong choice for structured data like the **Breast Cancer dataset**.
+
+# Data preparation
+
+First,we load the data and then we drop the observations that contains missing values. Next, we generate the train dataset and test dataset by using the sample function. After doing that, we set the variables into proper data type.
+
+```{r}
+library("mlbench")
+data("BreastCancer")
+head(BreastCancer)
+names(BreastCancer)
+df <- BreastCancer[-1]
+df
+
+sum(is.na(df)) 
+colSums(is.na(df))
+
+
+
+df <- na.omit(df)
+colSums(is.na(df))
+
+set.seed(1234)
+index <- sample(nrow(df), 0.7*nrow(df))
+train <- df[index,]
+test <- df[-index,]
+
+class(train)
+str(train)
+
+str(train$Class)
+levels(train$Class)
+# [1] "benign"    "malignant"
+
+train$Cl.thickness <- as.numeric(train$Cl.thickness)
+train$Cell.size <- as.numeric(train$Cell.size)
+train$Cell.shape <- as.numeric(train$Cell.shape)
+train$Marg.adhesion <- as.numeric(train$Marg.adhesion)
+train$Epith.c.size <- as.numeric(train$Epith.c.size)
+train$Bare.nuclei <- as.numeric(train$Bare.nuclei)
+train$Bl.cromatin <- as.numeric(train$Bl.cromatin)
+train$Normal.nucleoli <- as.numeric(train$Normal.nucleoli)
+train$Mitoses <- as.numeric(train$Mitoses)
+
+test$Cl.thickness <- as.numeric(test$Cl.thickness)
+test$Cell.size <- as.numeric(test$Cell.size)
+test$Cell.shape <- as.numeric(test$Cell.shape)
+test$Marg.adhesion <- as.numeric(test$Marg.adhesion)
+test$Epith.c.size <- as.numeric(test$Epith.c.size)
+test$Bare.nuclei <- as.numeric(test$Bare.nuclei)
+test$Bl.cromatin <- as.numeric(test$Bl.cromatin)
+test$Normal.nucleoli <- as.numeric(test$Normal.nucleoli)
+test$Mitoses <- as.numeric(test$Mitoses)
+
+
+str(test)
+str(train)
+```
+
+# XGBoost model
+
+It first extracts feature variables as well as the label variables. And then converts the target labels into numeric format (0 for benign, 1 for malignant) \[Sometimes numerical lables are more efficient in R language and we can see the use in the later confusion matrix\].
+
+The data is then transformed into an **XGBoost DMatrix**, an optimized format for efficient training.
+
+Finally, an XGBoost model is trained using a **gradient boosting decision tree (GBDT)** with a maximum depth of 6, a learning rate (eta) of 0.5, and a binary logistic objective for classification.
+
+```{r}
+
+library(caret)
+library(xgboost)
+
+features <- train[, -ncol(train)]
+labels <- train[, 10]
+labels_train <- as.numeric(labels) -1
+
+dtrain <- xgb.DMatrix(data = as.matrix(features), label = labels_train)
+
+model_xgb <- xgboost(data=dtrain,booster='gbtree',max_depth=6,eta=0.5,objective='binary:logistic',nround=25)
+
+```
+
+We do the same extraction for the test dataset.
+
+```{r}
+features_test <- test[, -ncol(train)]
+labels_test <- test[, 10]
+
+labels_test_num  <- as.numeric(labels_test) -1
+
+dtest <- xgb.DMatrix(data = as.matrix(features_test), label = labels_test_num)
+
+```
+
+Here we perform the prediction using the trained XGBoost model and convert the results into binary class labels (0 vs. 1) according to their prrdiction probability.
+
+```{r}
+prob <- predict(model_xgb , dtest)
+
+prediction <- factor(prob > 0.6,levels=c(FALSE,TRUE),label=c("0","1"))
+
+print(prediction)
+
+```
+
+Now that we have obtained the predicted classification labels for the test data, we can evaluate the performance of our XGBoost model using a confusion matrix. This will allow us to compare the actual and predicted classifications to assess the model’s accuracy.
+
+This result automatically generates various evaluation metrics, such as sensitivity and accuracy. Unlike logistic regression and decision trees, which require manual calculation of these metrics, XGBoost provides them directly. Based on these metrics, our model performs quite well.
+
+```{r}
+library(caret) 
+xgb.cf <-caret::confusionMatrix(as.factor(prediction),as.factor(labels_test_num)) 
+xgb.cf
+```
+
+# Conclusion
+
+XGBoost (Extreme Gradient Boosting) is an advanced ensemble learning technique based on decision trees. It improves model performance by iteratively optimizing weak learners and reducing errors using gradient boosting. Compared to traditional machine learning models, XGBoost is known for its high efficiency, scalability, and ability to handle complex patterns in data.
+
+In theory, XGBoost performs best on large datasets with high-dimensional features and structured data. It is particularly effective when dealing with missing values and interactions between features. However, for our breast cancer classification task, all five models—Logistic Regression, Decision Trees, Random Forest, SVM, and XGBoost—have shown relatively strong performance. This suggests that the dataset is well-structured and suitable for various classification algorithms.
